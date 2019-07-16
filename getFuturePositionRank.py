@@ -1,6 +1,7 @@
 from urllib import request
-import os,sys,json,re,zipfile
+import os,sys,csv,json,re,zipfile
 import requests
+from datetime import *
 
 def bigint(strBigInt):
 	strInt = strBigInt.strip()
@@ -10,6 +11,9 @@ def bigint(strBigInt):
 		return int(strInt.replace(',',''))
 
 def getProductName(contract):
+	print(contract)
+	if contract[-3:]=="all":
+		return contract[:-3].upper()
 	strPattern = r"(?P<product>[A-Za-z]+)\d+"
 	m=re.match(strPattern,contract)
 	product = m.groupdict()["product"].upper()
@@ -267,7 +271,7 @@ def parseCFFEX(datafile):
 			dictTotal[contract][5] += increment3
 		print(dictTotal)
 
-def parseSHFE(datafile):
+def parseSHFE(date,datafile):
 	file = open(datafile,'r')
 	line = file.read()
 	m=re.match(r'.*(?P<json>\[.*\]).*',line)
@@ -275,10 +279,15 @@ def parseSHFE(datafile):
 	result=json.loads(m.groupdict()['json'])
 	date = datafile[-12:-4]
 	print(result)
+	csv_write = csv.writer(open("shfe_"+date+'.csv','w+'))
+	header = ["date","exchange","product","contract","institution","rank","type","volume","increment"]
+	header.extend(["institution2","rank2","type2","volume2","increment2"])
+	header.extend(["institution3","rank3","type3","volume3","increment3"])
+	csv_write.writerow(header)
 	for item in result:
 		print(item)
 		contract = item["INSTRUMENTID"].strip()
-		product = contract
+		product = getProductName(contract)
 		exchange = "shfe"
 		institution = item["PARTICIPANTABBR1"].strip()
 		if institution == "":
@@ -290,12 +299,15 @@ def parseSHFE(datafile):
 		volume = item["CJ1"]
 		increment = item["CJ1_CHG"]
 		datatype = "trade"
+		row = [date,exchange,product,contract,institution,rank,datatype,volume,increment]
 		institution2 = item["PARTICIPANTABBR2"].strip()
 		if institution2 == "":
 			institution2 = "合计"
 		volume2 = item["CJ2"]
 		increment2 = item["CJ2_CHG"]
 		datatype2= "buy"
+		rank2 = rank
+		row.extend([institution2,rank2,datatype2,volume2,increment2])
 
 		institution3 = item["PARTICIPANTABBR3"].strip()
 		if institution3 == "":
@@ -303,19 +315,28 @@ def parseSHFE(datafile):
 		volume3 = item["CJ3"]
 		increment3 = item["CJ3_CHG"]
 		datatype3= "sell"
-
+		rank3 = rank
+		row.extend([institution3,rank3,datatype3,volume3,increment3])
+		csv_write.writerow(row)
 		print(volume3)
 		print(contract)
 		print(institution)
 	#print(line)
 
 if __name__ == "__main__":
-	#print("downloading with urllib")
-	#url = 'http://www.shfe.com.cn/data/dailydata/kx/pm20190708.dat'
+	today = date.today().strftime('%Y%m%d')
+	today = '20190715'
+	print(today)
+	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today
 	#url = 'http://www.cffex.com.cn/sj/ccpm/201907/08/IF_1.csv'
 	#url = "http://www.czce.com.cn/cn/DFSStaticFiles/Future/2019/20190708/FutureDataHolding.txt"
 	#request.urlretrieve(url,"./czce.txt")
-	#parseSHFE("./pm20190708.dat")
+
+	#request.urlretrieve(url_SHFE, url_SHFE.split('/')[-1])
+	#print(url_SHFE.split('/')[-1])
+	#parseSHFE(url_SHFE.split('/')[-1])
+	parseSHFE(today,'pm20190715.dat')
+
 	#parseCFFEX("./IF_1.csv")
 	#parseCZCE("./czce.txt")
-	parseDCE("./20190708_DCE_DPL.zip")
+	#parseDCE("./20190708_DCE_DPL.zip")

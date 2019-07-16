@@ -3,6 +3,10 @@ import os,sys,csv,json,re,zipfile
 import requests
 from datetime import *
 
+header = ["date","exchange","product","contract","institution","rank","type","volume","increment"]
+header.extend(["institution2","rank2","type2","volume2","increment2"])
+header.extend(["institution3","rank3","type3","volume3","increment3"])
+
 def bigint(strBigInt):
 	strInt = strBigInt.strip()
 	if strInt == '-':
@@ -212,13 +216,13 @@ def parseCZCE(datafile):
 				increment3 = bigint(items[9])
 				datatype3 = "sell"
 
-def parseCFFEX(datafile):
-	#codes = ["IF", "IC", "IH", "TS", "TF", "T"]
-	#for code in codes:
-	date = '20190708'
+def parseCFFEX(date, code, datafile):
 	file = open(datafile,'r',encoding='GBK')
 	lines = file.readlines()
 	#print(lines)
+	csv_write = csv.writer(open("cffex_"+code+"_"+date+'.csv','w+'))
+	csv_write.writerow(header)
+	exchange = "cffex"
 	dictTotal = {}
 	for line in lines:
 		if not line.startswith('20') or line.strip()=="":
@@ -226,8 +230,7 @@ def parseCFFEX(datafile):
 		items = line.split(',')
 		if len(items) == 9:
 			contract = items[1].strip()
-			product = contract
-			exchange = "cffex"
+			product = getProductName(contract)
 			institution = items[2].strip()
 			if institution == "期货公司":
 				rank = -1
@@ -236,31 +239,42 @@ def parseCFFEX(datafile):
 			volume = int(items[3])
 			increment = int(items[4])
 			datatype = "trade"
+			row = [date,exchange,product,contract,institution,rank,datatype,volume,increment]
 			institution2 = institution;
 			volume2 = int(items[5])
 			increment2 = int(items[6])
 			datatype2 = "buy"
+			rank2 = rank
+			row.extend([institution2,rank2,datatype2,volume2,increment2])
 			institution3 = institution
 			volume3 = int(items[7])
 			increment3 = int(items[8])
 			datatype3 = "sell"
+			rank3 = rank
+			row.extend([institution3,rank3,datatype3,volume3,increment3])
+			csv_write.writerow(row)
 		elif len(items) == 12:
 			contract = items[1].strip()
-			product = contract
-			exchange = "cffex"
+			product = getProductName(contract)
 			institution = items[3].strip()
 			rank = int(items[2])
 			volume = int(items[4])
 			increment = int(items[5])
 			datatype = "trade"
+			row = [date,exchange,product,contract,institution,rank,datatype,volume,increment]
 			institution2 = items[6].strip()
 			volume2 = int(items[7])
 			increment2 = int(items[8])
 			datatype2 = "buy"
+			rank2 = rank
+			row.extend([institution2,rank2,datatype2,volume2,increment2])
 			institution3 = items[9].strip()
 			volume3 = int(items[10])
 			increment3 = int(items[11])
 			datatype3 = "sell"
+			rank3 = rank
+			row.extend([institution3,rank3,datatype3,volume3,increment3])
+			csv_write.writerow(row)
 			if contract not in dictTotal:
 				dictTotal[contract] = [0,0,0,0,0,0]
 			dictTotal[contract][0] += volume
@@ -270,6 +284,11 @@ def parseCFFEX(datafile):
 			dictTotal[contract][4] += volume3
 			dictTotal[contract][5] += increment3
 		print(dictTotal)
+	for contract in dictTotal:
+		row = [date,exchange,getProductName(contract),contract,"合计",999,"trade",dictTotal[contract][0],dictTotal[contract][1]]
+		row.extend(["合计",999,"buy",dictTotal[contract][2],dictTotal[contract][3]])
+		row.extend(["合计",999,"sell",dictTotal[contract][4],dictTotal[contract][5]])
+		csv_write.writerow(row)
 
 def parseSHFE(date,datafile):
 	file = open(datafile,'r')
@@ -327,16 +346,24 @@ if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
 	today = '20190715'
 	print(today)
-	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today
-	#url = 'http://www.cffex.com.cn/sj/ccpm/201907/08/IF_1.csv'
+	
 	#url = "http://www.czce.com.cn/cn/DFSStaticFiles/Future/2019/20190708/FutureDataHolding.txt"
 	#request.urlretrieve(url,"./czce.txt")
 
+	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today
 	#request.urlretrieve(url_SHFE, url_SHFE.split('/')[-1])
 	#print(url_SHFE.split('/')[-1])
 	#parseSHFE(url_SHFE.split('/')[-1])
-	parseSHFE(today,'pm20190715.dat')
+	#parseSHFE(today,'pm20190715.dat')
 
-	#parseCFFEX("./IF_1.csv")
+	codes = ["IF", "IC", "IH", "TS", "TF", "T"]
+	codes = ["IF"]
+	for code in codes:
+		url_CFFEX = 'http://www.cffex.com.cn/sj/ccpm/%s/%s/%s_1.csv'%(today[:6],today[6:],code)
+		#request.urlretrieve(url_CFFEX, url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
+		print(url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
+		#parseCFFEX(today,code,url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
+		parseCFFEX(today, code,"IF_1_20190715.csv")
+	
 	#parseCZCE("./czce.txt")
 	#parseDCE("./20190708_DCE_DPL.zip")

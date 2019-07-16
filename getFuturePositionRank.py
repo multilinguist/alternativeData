@@ -3,7 +3,8 @@ import os,sys,csv,json,re,zipfile
 import requests
 from datetime import *
 
-header = ["date","exchange","product","contract","institution","rank","type","volume","increment"]
+smallheader = ["date","exchange","product","contract","institution","rank","type","volume","increment"]
+header = smallheader
 header.extend(["institution2","rank2","type2","volume2","increment2"])
 header.extend(["institution3","rank3","type3","volume3","increment3"])
 
@@ -27,7 +28,7 @@ def getProductName(contract):
 	return product
 	pass
 
-def getDceZipData(date,filename):
+def getDceZipData(url,date,filename):
 	postdata={}
 	postdata["memberDealPosiQuotes.variety"] = "a"
 	postdata["memberDealPosiQuotes.trade_type"] = "0"
@@ -37,11 +38,19 @@ def getDceZipData(date,filename):
 	postdata["contract.contract_id"] = "all"
 	postdata["contract.variety_id"] = "a"
 	postdata["batchExportFlag"] = "batch";
-	response=requests.post("http://www.dce.com.cn/publicweb/quotesdata/exportMemberDealPosiQuotesBatchData.html",data=postdata)
+	response=requests.post(url,data=postdata)
 	content =  response
 	f = open(filename,"wb")
 	f.write(response.content)
 	f.close()
+
+def downloadFile(url, filename):
+	req = requests.get(url)
+	if req.status_code == 404:
+		print("url %s does not exist!!!"%url)
+		return
+	f = open(filename, 'wb')
+	f.write(req.content)
 
 def getDcePostData(date,code):
 	postdata={}
@@ -58,14 +67,17 @@ def getDcePostData(date,code):
 	content =  response.text.replace("\t","").replace("\r","").replace("\n","")
 	return content
 
-def parseDCE(datafile):
-	getDceZipData("20190708",datafile)
+def parseDCE(date, datafile):
 	fzip = zipfile.ZipFile(datafile,'r')
 	for file in fzip.namelist():
 		fzip.extract(file,"./dce")
 	filelist = os.listdir("./dce")
-	sys.exit()
+	csv_write1 = csv.writer(open("dce1_"+date+'.csv','w+'))
+	csv_write1.writerow(smallheader)
+	csv_write2 = csv.writer(open("dce2_"+date+'.csv','w+'))
+	csv_write2.writerow(header)
 	products = []
+	exchange = "dce"
 	for i in range(0,len(filelist)):
 		path = os.path.join("./dce",filelist[i])
 		if os.path.isfile(path):
@@ -74,7 +86,6 @@ def parseDCE(datafile):
 			lines = file.readlines()
 			contract = ""
 			datatype = ""
-			exchange = "dce"
 			for line in lines:
 				if "会员类别" in line:
 					break
@@ -111,15 +122,17 @@ def parseDCE(datafile):
 						rank = int(items[0])
 						volume = bigint(items[2])
 						increment = bigint(items[3])
-	products = ["J"]
+					row = [date,exchange,product,contract,institution,rank,datatype,volume,increment]
+					csv_write1.writerow(row)
+	#products = ["J"]
 	for product in products:
-		#content = getDcePostData("20190708",product)
+		content = getDcePostData(date,product)
 		#f=open("content",'w')
 		#f.write(content)
 		#f.close()
-		f=open("content",'r')
-		content=f.read()
-		f.close()
+		#f=open(content,'r')
+		#content=f.read()
+		#f.close()
 		strPattern1 = r".*<th> 名次</th>(?P<table>.*)</table>.*"
 		match1 = re.match(strPattern1,content)
 		if match1:
@@ -154,21 +167,27 @@ def parseDCE(datafile):
 					volume = bigint(match3.groupdict()["Volume1"])
 					increment = bigint(match3.groupdict()["Diff1"])
 					datatype = "trade"
+					row = [date,exchange,product,contract,institution,rank,datatype,volume,increment]
 					volume2 = bigint(match3.groupdict()["Volume2"])
 					increment2 = bigint(match3.groupdict()["Diff2"])
 					datatype2 = "buy"
+					rank2 = rank
+					row.extend([institution2,rank2,datatype2,volume2,increment2])
 					volume3 = bigint(match3.groupdict()["Volume3"])
 					increment3 = bigint(match3.groupdict()["Diff3"])
 					datatype3 = "sell"
-                            
+					rank3 = rank
+					row.extend([institution3,rank3,datatype3,volume3,increment3])
+					csv_write2.writerow(row)
 
-def parseCZCE(datafile):
-	date = '20190708'
+def parseCZCE(date, datafile):
 	file = open(datafile,'r')
 	lines = file.readlines()
+	csv_write = csv.writer(open("czce"+"_"+date+'.csv','w+'))
+	csv_write.writerow(header)
 	isProduct = False
+	exchange = "czce"
 	for line in lines:
-		exchange = "czce"
 		if line.startswith("名次") or line.strip()=="":
 			continue
 		if line.startswith("品种"):
@@ -193,7 +212,7 @@ def parseCZCE(datafile):
 				contract = "all"
 				product = contract
 			else:
-				product = contract
+				product = getProductName(contract)
 			if line.startswith("合计"):
 				institution = "合计"
 				institution2 = institution
@@ -204,17 +223,21 @@ def parseCZCE(datafile):
 				institution2 = items[4].strip()
 				institution3= items[7].strip()
 				rank = int(items[0])
-				volume = bigint(items[2])
-				increment = bigint(items[3])
-				datatype = "trade"
-				rank2 = rank
-				volume2 = bigint(items[5])
-				increment2 = bigint(items[6])
-				datatype2 = "buy"
-				rank3 = rank
-				volume3 = bigint(items[8])
-				increment3 = bigint(items[9])
-				datatype3 = "sell"
+			volume = bigint(items[2])
+			increment = bigint(items[3])
+			datatype = "trade"
+			row = [date,exchange,product,contract,institution,rank,datatype,volume,increment]
+			rank2 = rank
+			volume2 = bigint(items[5])
+			increment2 = bigint(items[6])
+			datatype2 = "buy"
+			row.extend([institution2,rank2,datatype2,volume2,increment2])
+			rank3 = rank
+			volume3 = bigint(items[8])
+			increment3 = bigint(items[9])
+			datatype3 = "sell"
+			row.extend([institution3,rank3,datatype3,volume3,increment3])
+			csv_write.writerow(row)
 
 def parseCFFEX(date, code, datafile):
 	file = open(datafile,'r',encoding='GBK')
@@ -299,9 +322,9 @@ def parseSHFE(date,datafile):
 	date = datafile[-12:-4]
 	print(result)
 	csv_write = csv.writer(open("shfe_"+date+'.csv','w+'))
-	header = ["date","exchange","product","contract","institution","rank","type","volume","increment"]
-	header.extend(["institution2","rank2","type2","volume2","increment2"])
-	header.extend(["institution3","rank3","type3","volume3","increment3"])
+	#header = ["date","exchange","product","contract","institution","rank","type","volume","increment"]
+	#header.extend(["institution2","rank2","type2","volume2","increment2"])
+	#header.extend(["institution3","rank3","type3","volume3","increment3"])
 	csv_write.writerow(header)
 	for item in result:
 		print(item)
@@ -344,26 +367,27 @@ def parseSHFE(date,datafile):
 
 if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
-	today = '20190715'
+	#today = '20190715'
 	print(today)
 	
-	#url = "http://www.czce.com.cn/cn/DFSStaticFiles/Future/2019/20190708/FutureDataHolding.txt"
-	#request.urlretrieve(url,"./czce.txt")
-
 	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today
-	#request.urlretrieve(url_SHFE, url_SHFE.split('/')[-1])
-	#print(url_SHFE.split('/')[-1])
-	#parseSHFE(url_SHFE.split('/')[-1])
-	#parseSHFE(today,'pm20190715.dat')
-
+	request.urlretrieve(url_SHFE, url_SHFE.split('/')[-1])
+	print(url_SHFE.split('/')[-1])
+	
 	codes = ["IF", "IC", "IH", "TS", "TF", "T"]
-	codes = ["IF"]
 	for code in codes:
 		url_CFFEX = 'http://www.cffex.com.cn/sj/ccpm/%s/%s/%s_1.csv'%(today[:6],today[6:],code)
-		#request.urlretrieve(url_CFFEX, url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
+		request.urlretrieve(url_CFFEX, url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
 		print(url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
-		#parseCFFEX(today,code,url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
-		parseCFFEX(today, code,"IF_1_20190715.csv")
+		parseCFFEX(today,code,url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")
 	
-	#parseCZCE("./czce.txt")
-	#parseDCE("./20190708_DCE_DPL.zip")
+	url_czce = "http://www.czce.com.cn/cn/DFSStaticFiles/Future/%s/%s/FutureDataHolding.txt"%(today[:4],today)
+	print(url_czce)
+	file_czce = url_czce.split('/')[-1].split(".")[0] + "_" + today + ".txt"
+	#request.urlretrieve(url_czce, file_czce)
+	downloadFile(url_czce, file_czce)
+	parseCZCE(today, file_czce)
+	
+	url_dce = "http://www.dce.com.cn/publicweb/quotesdata/exportMemberDealPosiQuotesBatchData.html"
+	getDceZipData(url_dce, today, today+"_DCE_DPL.zip")
+	parseDCE(today, today+"_DCE_DPL.zip")

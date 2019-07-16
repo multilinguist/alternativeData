@@ -1,5 +1,5 @@
 from urllib import request
-import os,json,re,zipfile
+import os,sys,json,re,zipfile
 import requests
 
 def bigint(strBigInt):
@@ -19,6 +19,22 @@ def getProductName(contract):
 	return product
 	pass
 
+def getDceZipData(date,filename):
+	postdata={}
+	postdata["memberDealPosiQuotes.variety"] = "a"
+	postdata["memberDealPosiQuotes.trade_type"] = "0"
+	postdata["year"] = date[:4]
+	postdata["month"] = str(int(date[4:6])-1)
+	postdata["day"] = date[6:]
+	postdata["contract.contract_id"] = "all"
+	postdata["contract.variety_id"] = "a"
+	postdata["batchExportFlag"] = "batch";
+	response=requests.post("http://www.dce.com.cn/publicweb/quotesdata/exportMemberDealPosiQuotesBatchData.html",data=postdata)
+	content =  response
+	f = open(filename,"wb")
+	f.write(response.content)
+	f.close()
+
 def getDcePostData(date,code):
 	postdata={}
 	postdata["memberDealPosiQuotes.variet"] = code
@@ -35,10 +51,12 @@ def getDcePostData(date,code):
 	return content
 
 def parseDCE(datafile):
+	getDceZipData("20190708",datafile)
 	fzip = zipfile.ZipFile(datafile,'r')
 	for file in fzip.namelist():
 		fzip.extract(file,"./dce")
 	filelist = os.listdir("./dce")
+	sys.exit()
 	products = []
 	for i in range(0,len(filelist)):
 		path = os.path.join("./dce",filelist[i])
@@ -110,6 +128,31 @@ def parseDCE(datafile):
 <td >(?P<No3>[0-9]+)</td><td >(?P<Name3>.{2,20})</td><td  class=\"td-right\">(?P<Volume3>[0-9,]+)</td><td  class=\"td-right\">(?P<Diff3>[0-9,]+)</td>              </tr>"
 				match3 = re.match(strPattern3,item)
 				print(match3.groupdict())
+				#date,product
+				contract = "all"
+				exchange = "dce"
+				#{'No1': '20', 'Name1': '宏源期货', 'Volume1': '1,564', 'Diff1': '237', 'No2': '20', 'Name2': '安粮期货', 'Volume2': '1,449', 'Diff2': '72', 'No3': '20', 'Name3': '国富期货', 'Volume3': '1,126', 'Diff3': '92'}
+				
+				if "总计" in match3.groupdict()["No1"]:
+					institution = "合计"
+					institution2 = institution
+					institution3 = institution
+					rank = 999
+				else:
+					institution = match3.groupdict()["Name1"]
+					institution2 = match3.groupdict()["Name2"]
+					institution3 = match3.groupdict()["Name3"]
+					rank = int(match3.groupdict()["No1"])
+					volume = bigint(match3.groupdict()["Volume1"])
+					increment = bigint(match3.groupdict()["Diff1"])
+					datatype = "trade"
+					volume2 = bigint(match3.groupdict()["Volume2"])
+					increment2 = bigint(match3.groupdict()["Diff2"])
+					datatype2 = "buy"
+					volume3 = bigint(match3.groupdict()["Volume3"])
+					increment3 = bigint(match3.groupdict()["Diff3"])
+					datatype3 = "sell"
+                            
 
 def parseCZCE(datafile):
 	date = '20190708'

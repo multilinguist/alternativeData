@@ -306,11 +306,11 @@ def parseCFFEX(date, code, datafile):
 			dictTotal[contract][5] += increment3
 		print(dictTotal)
 	for contract in dictTotal:
-		row = [date,getProductName(contract),contract,exchange,"合计",999,"trade",dictTotal[contract][0],dictTotal[contract][1]]
+		row = [date,getProductName(contract),contract,exchange,"合计",999,dictTotal[contract][0],dictTotal[contract][1],"trade"]
 		csv_write.writerow(row)
-		row = [date,getProductName(contract),contract,exchange,"合计",999,"buy",dictTotal[contract][2],dictTotal[contract][3]]
+		row = [date,getProductName(contract),contract,exchange,"合计",999,dictTotal[contract][2],dictTotal[contract][3],"buy"]
 		csv_write.writerow(row)
-		row = [date,getProductName(contract),contract,exchange,"合计",999,"sell",dictTotal[contract][4],dictTotal[contract][5]]
+		row = [date,getProductName(contract),contract,exchange,"合计",999,dictTotal[contract][4],dictTotal[contract][5],"sell"]
 		csv_write.writerow(row)
 
 def parseSHFE(date,datafile):
@@ -364,7 +364,7 @@ def parseSHFE(date,datafile):
 
 if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
-	#today = '20190715'
+	#today = '20190920'
 	print(today)
 	
 	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today

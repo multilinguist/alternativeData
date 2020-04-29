@@ -121,9 +121,9 @@ def parseDCE(date, datafile):
 	#products = ["J"]
 	for product in products:
 		content = getDcePostData(date,product)
-		#f=open("content",'w')
-		#f.write(content)
-		#f.close()
+		f=open(f"content_{product}",'w')
+		f.write(content)
+		f.close()
 		#f=open(content,'r')
 		#content=f.read()
 		#f.close()
@@ -182,6 +182,7 @@ def parseCZCE(date, datafile):
 	lines = file.readlines()
 	csv_write = csv.writer(open("vorank_czce.csv",'w+',encoding='GBK',newline=''))
 	csv_write.writerow(header)
+	allrows = []
 	exchange = "czce"
 	isProduct = False
 	for line in lines:
@@ -225,19 +226,27 @@ def parseCZCE(date, datafile):
 			datatype = "trade"
 			row = [date,product,contract,exchange,institution,rank,volume,increment,datatype]
 			if row:
-				csv_write.writerow(row)
+				allrows.append(row)
+				#csv_write.writerow(row)
 			volume2 = bigint(items[5])
 			increment2 = bigint(items[6])
 			datatype2 = "buy"
 			row = [date,product,contract,exchange,institution2,rank,volume2,increment2,datatype2]
 			if row:
-				csv_write.writerow(row)
+				allrows.append(row)
+				#csv_write.writerow(row)
 			volume3 = bigint(items[8])
 			increment3 = bigint(items[9])
 			datatype3 = "sell"
 			row = [date,product,contract,exchange,institution3,rank,volume3,increment3,datatype3]
 			if row:
-				csv_write.writerow(row)
+				allrows.append(row)
+				#csv_write.writerow(row)
+	allrows.sort(key=lambda x:x[1]+x[2])
+	print(allrows[:5])
+	for row in allrows:
+		if int(row[6])>0:
+			csv_write.writerow(row)
 
 def parseCFFEX(date, code, datafile):
 	file = open(datafile,'r',encoding='GBK')
@@ -380,9 +389,9 @@ def parseSHFE(date,datafile):
 
 if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
-	today = '20200410'
+	today = '20200415'
 	print(today)
-	
+	'''
 	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today
 	request.urlretrieve(url_SHFE, url_SHFE.split('/')[-1])
 	print(url_SHFE.split('/')[-1])
@@ -400,7 +409,7 @@ if __name__ == "__main__":
 	file_czce = url_czce.split('/')[-1].split(".")[0] + "_" + today + ".txt"
 	#request.urlretrieve(url_czce, file_czce)
 	downloadFile(url_czce, file_czce)
-	parseCZCE(today, file_czce)
+	parseCZCE(today, file_czce)'''
 	
 	url_dce = "http://www.dce.com.cn/publicweb/quotesdata/exportMemberDealPosiQuotesBatchData.html"
 	getDceZipData(url_dce, today, today+"_DCE_DPL.zip")

@@ -267,6 +267,7 @@ def parseCFFEX(date, code, datafile):
 	csv_write = csv.writer(open("vorank_cffex.csv",'a+',encoding='GBK',newline=''))
 	if bCreate:
 		csv_write.writerow(header)
+	allrows = []
 	exchange = "cffex"
 	dictTotal = {}
 	for line in lines:
@@ -286,19 +287,22 @@ def parseCFFEX(date, code, datafile):
 			datatype = "trade"
 			row = [date,product,contract,exchange,institution,rank,volume,increment,datatype]
 			if row:
-				csv_write.writerow(row)
+				#csv_write.writerow(row)
+				allrows.append(row)
 			volume2 = int(items[5])
 			increment2 = int(items[6])
 			datatype2 = "buy"
 			row = [date,product,contract,exchange,institution,rank,volume2,increment2,datatype2]
 			if row:
-				csv_write.writerow(row)
+				#csv_write.writerow(row)
+				allrows.append(row)
 			volume3 = int(items[7])
 			increment3 = int(items[8])
 			datatype3 = "sell"
 			row = [date,product,contract,exchange,institution,rank,volume3,increment3,datatype3]
 			if row:
-				csv_write.writerow(row)
+				#csv_write.writerow(row)
+				allrows.append(row)
 		elif len(items) == 12:
 			contract = items[1].strip()
 			product = getProductName(contract)
@@ -309,21 +313,24 @@ def parseCFFEX(date, code, datafile):
 			datatype = "trade"
 			row = [date,product,contract,exchange,institution,rank,volume,increment,datatype]
 			if row:
-				csv_write.writerow(row)
+				#csv_write.writerow(row)
+				allrows.append(row)
 			institution2 = items[6].strip()
 			volume2 = int(items[7])
 			increment2 = int(items[8])
 			datatype2 = "buy"
 			row = [date,product,contract,exchange,institution2,rank,volume2,increment2,datatype2]
 			if row:
-				csv_write.writerow(row)
+				#csv_write.writerow(row)
+				allrows.append(row)
 			institution3 = items[9].strip()
 			volume3 = int(items[10])
 			increment3 = int(items[11])
 			datatype3 = "sell"
 			row = [date,product,contract,exchange,institution3,rank,volume3,increment3,datatype2]
 			if row:
-				csv_write.writerow(row)
+				#csv_write.writerow(row)
+				allrows.append(row)
 			if contract not in dictTotal:
 				dictTotal[contract] = [0,0,0,0,0,0]
 			dictTotal[contract][0] += volume
@@ -336,13 +343,21 @@ def parseCFFEX(date, code, datafile):
 	for contract in dictTotal:
 		row = [date,getProductName(contract),contract,exchange,"合计",999,dictTotal[contract][0],dictTotal[contract][1],"trade"]
 		if row:
-			csv_write.writerow(row)
+			#csv_write.writerow(row)
+			allrows.append(row)
 		row = [date,getProductName(contract),contract,exchange,"合计",999,dictTotal[contract][2],dictTotal[contract][3],"buy"]
 		if row:
-			csv_write.writerow(row)
+			#csv_write.writerow(row)
+			allrows.append(row)
 		row = [date,getProductName(contract),contract,exchange,"合计",999,dictTotal[contract][4],dictTotal[contract][5],"sell"]
 		if row:
-			csv_write.writerow(row)
+			#csv_write.writerow(row)
+			allrows.append(row)
+	allrows.sort(key=lambda x:x[1]+x[2])
+	print(allrows[:5])
+	for row in allrows:
+		#if int(row[6])>0:
+		csv_write.writerow(row)
 
 def parseSHFE(date,datafile):
 	file = open(datafile,'r',encoding='utf-8')
@@ -354,6 +369,7 @@ def parseSHFE(date,datafile):
 	print(result)
 	csv_write = csv.writer(open("vorank_shfe.csv",'w+',encoding='GBK',newline=''))
 	csv_write.writerow(header)
+	allrows = []
 	for item in result:
 		print(item)
 		contract = item["INSTRUMENTID"].strip()
@@ -371,7 +387,8 @@ def parseSHFE(date,datafile):
 		datatype = "trade"
 		row = [date,product,contract,exchange,institution,rank,volume,increment,datatype]
 		if row:
-			csv_write.writerow(row)
+			#csv_write.writerow(row)
+			allrows.append(row)
 		institution2 = item["PARTICIPANTABBR2"].strip()
 		if institution2 == "":
 			institution2 = "合计"
@@ -380,7 +397,8 @@ def parseSHFE(date,datafile):
 		datatype2= "buy"
 		row = [date,product,contract,exchange,institution2,rank,volume2,increment2,datatype2]
 		if row:
-			csv_write.writerow(row)
+			#csv_write.writerow(row)
+			allrows.append(row)
 
 		institution3 = item["PARTICIPANTABBR3"].strip()
 		if institution3 == "":
@@ -390,11 +408,16 @@ def parseSHFE(date,datafile):
 		datatype3= "sell"
 		row = [date,product,contract,exchange,institution3,rank,volume3,increment3,datatype3]
 		if row:
-			csv_write.writerow(row)
+			#csv_write.writerow(row)
+			allrows.append(row)
 		print(volume3)
 		print(contract)
 		print(institution)
 	#print(line)
+	allrows.sort(key=lambda x:x[1]+x[2])
+	#print(allrows[:5])
+	for row in allrows:
+		csv_write.writerow(row)
 
 if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
@@ -405,7 +428,7 @@ if __name__ == "__main__":
 	print(url_SHFE.split('/')[-1])
 	parseSHFE(today, url_SHFE.split('/')[-1])
 	
-	codes = ["IF", "IC", "IH", "TS", "TF", "T"]
+	codes = ["IC", "IF", "IH", "T", "TF", "TS"]
 	for code in codes:
 		url_CFFEX = 'http://www.cffex.com.cn/sj/ccpm/%s/%s/%s_1.csv'%(today[:6],today[6:],code)
 		request.urlretrieve(url_CFFEX, url_CFFEX.split('/')[-1].split(".")[0]+"_"+today+".csv")

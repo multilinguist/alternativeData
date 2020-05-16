@@ -134,13 +134,13 @@ def parseDCE(date, datafile):
 		if match1:
 			table = match1.groupdict()["table"]
 			#print(table)
-			strPattern2=r"<tr >\s{1,10}<td\s?>.{1,10}</td><td\s?>.{2,20}</td><td\s{1,10}class=\"td-right\">[0-9,]+</td><td\s{1,10}class=\"td-right\">[0-9,]+</td>\s+"
+			strPattern2=r"<tr >\s{1,10}<td\s?>.{1,10}</td><td\s?>.{2,20}</td><td\s{1,10}class=\"td-right\">[0-9,]+</td><td\s{1,10}class=\"td-right\">[\d,-]+</td>\s+"
 			strPattern2+=r"<td\s?>.{1,10}</td><td\s?>.{2,20}</td><td\s{1,10}class=\"td-right\">[0-9,]+</td><td\s{1,10}class=\"td-right\">[\d,-]+</td>\s+"
 			strPattern2+=r"<td\s?>.{1,10}</td><td\s?>.{2,20}</td><td\s{1,10}class=\"td-right\">[0-9,]+</td><td\s{1,10}class=\"td-right\">[\d,-]+</td>\s{1,16}</tr>"
 			match2 = re.findall(strPattern2,table)
 			print(len(match2))
 			for item in match2:
-				strPattern3=r"<tr >\s{1,10}<td\s?>(?P<No1>.{1,10})</td><td\s?>(?P<Name1>.{2,20})</td><td\s{1,10}class=\"td-right\">(?P<Volume1>[0-9,]+)</td><td\s{1,10}class=\"td-right\">(?P<Diff1>[0-9,]+)</td>\s+"
+				strPattern3=r"<tr >\s{1,10}<td\s?>(?P<No1>.{1,10})</td><td\s?>(?P<Name1>.{2,20})</td><td\s{1,10}class=\"td-right\">(?P<Volume1>[0-9,]+)</td><td\s{1,10}class=\"td-right\">(?P<Diff1>[\d,-]+)</td>\s+"
 				strPattern3+=r"<td\s?>(?P<No2>.{1,10})</td><td\s?>(?P<Name2>.{2,20})</td><td\s{1,10}class=\"td-right\">(?P<Volume2>[0-9,]+)</td><td\s{1,10}class=\"td-right\">(?P<Diff2>[\d,-]+)</td>\s+"
 				strPattern3+=r"<td\s?>(?P<No3>.{1,10})</td><td\s?>(?P<Name3>.{2,20})</td><td\s{1,10}class=\"td-right\">(?P<Volume3>[0-9,]+)</td><td\s{1,10}class=\"td-right\">(?P<Diff3>[\d,-]+)</td>\s{1,16}</tr>"
 				match3 = re.match(strPattern3,item)
@@ -181,7 +181,7 @@ def parseDCE(date, datafile):
 				if row:
 					#csv_write.writerow(row)
 					allrows.append(row)
-	allrows.sort(key=lambda x:x[1]+x[2])
+	allrows.sort(key=lambda x:(x[1],x[2],x[5],x[8]))
 	#print(allrows[:5])
 	for row in allrows:#if int(row[6])>0:
 		csv_write.writerow(row)
@@ -204,6 +204,8 @@ def parseCZCE(date, datafile):
 			print(contract)
 			product = contract
 			isProduct = True
+			if product=='TA':
+				product = 'PTA'
 			continue
 		elif line.startswith("合约"):
 			strPattern = r"合约" + r".*(?P<contract>[A-Za-z0-9]{5,10})\s+.*"
@@ -234,28 +236,32 @@ def parseCZCE(date, datafile):
 			increment = bigint(items[3])
 			datatype = "trade"
 			row = [date,product,contract,exchange,institution,rank,volume,increment,datatype]
-			if row:
-				allrows.append(row)
+			print(row)
+			#if row:
+			allrows.append(row)
 				#csv_write.writerow(row)
 			volume2 = bigint(items[5])
 			increment2 = bigint(items[6])
 			datatype2 = "buy"
 			row = [date,product,contract,exchange,institution2,rank,volume2,increment2,datatype2]
-			if row:
-				allrows.append(row)
+			print(row)
+			#if row:
+			allrows.append(row)
 				#csv_write.writerow(row)
 			volume3 = bigint(items[8])
 			increment3 = bigint(items[9])
 			datatype3 = "sell"
 			row = [date,product,contract,exchange,institution3,rank,volume3,increment3,datatype3]
-			if row:
-				allrows.append(row)
+			print(row)
+			#if row:
+			allrows.append(row)
 				#csv_write.writerow(row)
-	allrows.sort(key=lambda x:x[1]+x[2])
+	allrows.sort(key=lambda x:(x[1],x[2],x[5],x[8]))
 	print(allrows[:5])
 	for row in allrows:
-		if int(row[6])>0:
-			csv_write.writerow(row)
+		if int(row[6])  == 0  and int(row[7])  == 0:
+			continue
+		csv_write.writerow(row)
 
 def parseCFFEX(date, code, datafile):
 	file = open(datafile,'r',encoding='GBK')

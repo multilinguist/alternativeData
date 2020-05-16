@@ -1,12 +1,34 @@
 import re,csv,sys
+import pandas as pd
 from datetime import *
 from getFuturePositionRank import bigint
 header = ["date","product","contract","exchange","institution","rank","volume","increment","type"]
+
+file_sgd = "/home/xiaodong/downloads/vorank_dce_sgd.csv"
+file_mine = "/home/xiaodong/gitrepo/alternativeData/vorank_dce.csv"
+
+df1 = pd.read_csv(file_sgd,encoding = "gbk")
+df2 = pd.read_csv(file_mine,encoding = "gbk")
+
+sgd = set([tuple(x) for x in df1.values])
+mine = set([tuple(x) for x in df2.values])
+
+diff1_sgd = list(sgd.difference(mine))
+diff1_mine = list(mine.difference(sgd))
+
+diff1_sgd.sort(key=lambda x:(x[1],x[2]))
+diff1_mine.sort(key=lambda x:(x[1],x[2]))
+
+print(diff1_sgd)
+print(len(diff1_sgd))
+print(diff1_mine)
+print(len(diff1_mine))
 
 #print(sys.getdefaultencoding())
 
 #f_log=open('test.log','w+',encoding='GBK')
 
+"""
 f=open('content_a','r',encoding='GBK')
 content=f.read()
 f.close()
@@ -121,3 +143,4 @@ allrows.sort(key=lambda x:x[1]+x[2])
 for row in allrows:#if int(row[6])>0:
 	csv_write.writerow(row)
 #print(allrows)
+"""

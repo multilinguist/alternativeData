@@ -333,7 +333,7 @@ def parseCFFEX(date, code, datafile):
 			volume3 = int(items[10])
 			increment3 = int(items[11])
 			datatype3 = "sell"
-			row = [date,product,contract,exchange,institution3,rank,volume3,increment3,datatype2]
+			row = [date,product,contract,exchange,institution3,rank,volume3,increment3,datatype3]
 			if row:
 				#csv_write.writerow(row)
 				allrows.append(row)
@@ -427,7 +427,7 @@ def parseSHFE(date,datafile):
 
 if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
-	today = '20200415'
+	today = '20200722'
 	print(today)
 	url_SHFE = 'http://www.shfe.com.cn/data/dailydata/kx/pm%s.dat'%today
 	request.urlretrieve(url_SHFE, url_SHFE.split('/')[-1])

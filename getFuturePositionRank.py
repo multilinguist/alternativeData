@@ -1,17 +1,29 @@
 from urllib import request
-import os,sys,csv,json,re,zipfile,glob
-import requests
-from datetime import *
+import os,sys,csv,json,re,zipfile,glob,logging
+import requests,time
+from datetime import datetime,date
 import pandas as pd
+from pandas.io import sql
+from sqlalchemy import create_engine,exc
+from dboperMysql import MysqlDB
+from dbroutine import replaceItems,insertItems
 
+logger = logging.getLogger()
+log_path = os.getcwd() + '/logs/'
+log_name = os.path.join(log_path,time.strftime('%Y-%m-%d_%H:%M:%S', time.localtime(time.time())) + '.log')
+fh = logging.FileHandler(log_name, mode='w')
+fh.setLevel(logging.DEBUG)
+logger.addHandler(fh)
 header = ["date","product","contract","exchange","institution","rank","volume","increment","type"]
+czce_start_date = "20100825"
+czce_url_change_date = "20151001"
 
 def bigint(strBigInt):
 	strInt = strBigInt.strip()
 	if strInt == '-':
 		return 0
 	else:
-		return int(strInt.replace(',',''))
+		return int(float(strInt.replace(',','')))
 
 def getProductName(contract):
 	print(contract)
@@ -19,6 +31,8 @@ def getProductName(contract):
 		return contract[:-3].upper()
 	strPattern = r"(?P<product>[A-Za-z]+)\d+"
 	m=re.match(strPattern,contract)
+	if not m:
+		return None
 	product = m.groupdict()["product"].upper()
 	if product == 'TA':
 		product = 'PTA'
@@ -79,7 +93,8 @@ def parseDCE(date, datafile):
 			#print(path)
 			file = open(filelist[i],'r',encoding='utf-8')
 			lines = file.readlines()
-			contract = ""
+			#contract = ""
+			contract = filelist[i].split("_")[1]
 			datatype = ""
 			for line in lines:
 				if "会员类别" in line:
@@ -103,7 +118,11 @@ def parseDCE(date, datafile):
 					items = line.replace("\t", " ").strip().split()
 					if len(items) <=1:
 						continue
-					product = getProductName(contract).lower()
+					product = getProductName(contract)
+					if product is None:
+						logger.error(f'getProductName fail,date:{date},contract:{contract},file:{filelist[i]}')
+						return
+					product = product.lower()
 					if product not in set(products):
 						products.append(product)
 						print(products)
@@ -201,7 +220,10 @@ def parseCZCE(date, datafile):
 		if line.startswith("品种"):
 			strPattern = r"品种" + r".*(?P<contract>[A-Za-z]{2,6})\s+.*"
 			m=re.match(strPattern,line)
-			contract = m.groupdict()["contract"]
+			if m:
+				contract = m.groupdict()["contract"]
+			else:
+				contract = czce_name_code[re.split(r"：|\s",line)[1]]
 			print(contract)
 			product = contract
 			isProduct = True
@@ -216,8 +238,15 @@ def parseCZCE(date, datafile):
 			isProduct = False
 			continue
 		else:
-			items = line.split('|')
+			line = line.strip()
+			if '|' in line:
+				items = line.split('|')
+			else:
+				items = line.split(',')
+			print(items)
 			if len(items) != 10:
+				continue
+			if items[8] == "" or items[9] == "" or items[2] == "" or items[3] == "" or items[5] == "" or items[6] == "":
 				continue
 			if isProduct:
 				contract = "all"
@@ -380,7 +409,14 @@ def parseSHFE(date,datafile):
 	for item in result:
 		print(item)
 		contract = item["INSTRUMENTID"].strip()
-		product = getProductName(contract).lower()
+		if "actv" in contract:
+			logger.error(f'getProductName fail,date:{date},contract:{contract}')
+			continue
+		product = getProductName(contract)
+		if product is None:
+			logger.error(f'getProductName fail,date:{date},contract:{contract}')
+			return
+		product = product.lower()
 		exchange = "shfe"
 		institution = item["PARTICIPANTABBR1"].strip()
 		if institution == "":
@@ -426,24 +462,98 @@ def parseSHFE(date,datafile):
 	for row in allrows:
 		csv_write.writerow(row)
 
+def vorank2db(tradedate):
+	db_op.dbConnect(config['db_market'])
+	curdatepath = "./parsed/" + tradedate
+	filelist = glob.glob(f"{curdatepath}/*.csv")
+	print(filelist)
+
+	for csvfile in filelist:
+		df = pd.read_csv(csvfile,encoding='GBK',engine='python',na_filter=False,dtype={'date': str, 'rank': str,'volume':str,'increment':str})
+		print(df.dtypes)
+		print(df[df.isnull().T.any()])
+		print(df[:5])
+		#df['date']=df['date'].apply(str)
+		print(df.shape)
+		df.drop_duplicates(inplace=True)
+		print(df.shape)
+		df.to_sql(f'vorank_{tradedate}', engine, if_exists='replace',index=False)
+		#del df['rank']
+		columns = df.columns.values.tolist()
+		#values =[tuple(x) for x in df.values[-1:]]
+		#values = tuple(map(tuple, df.values))
+		#replaceItems(db_op,'vorank',columns,values)
+		copy_sql = f"replace into vorank select * from vorank_{tradedate}"
+		db_op.dbExecute(copy_sql)
+
 if __name__ == "__main__":
 	codes_cffex = ["IC", "IF", "IH", "T", "TF", "TS"]
 	today = date.today().strftime('%Y%m%d')
-	print(today)
+	#print(today)
 
-	startdate = today#'20200723'
-	enddate = today#'20200723'
+	with open("config.json") as f:
+		config = json.load(f)["db"]
+	db_op = MysqlDB(config['user'],config['password'],config['host'])
+	connStr = f"mysql+pymysql://{config['user']}:{config['password']}@{config['host']}/{config['db_market']}?charset=utf8"
+	engine = create_engine(connStr, encoding='utf-8', echo=True)
+	#print(config)
 
-	df = pd.read_csv('calendar_all.csv')
-	alldates = df.tradedate.values.tolist()
-	alldates = [str(x) for x in alldates if str(x) >= startdate and str(x) <= enddate]
-	#alldates = ['20150323']
-	#alldates = ['20200722']
+	czce_name_code = {}
+	df_czce = pd.read_csv("czce.csv")
+	for idx,row in df_czce.iterrows():
+		czce_name_code[row["name"]] = row["code"]
+
+	startdate = today
+	enddate = today
+
+	#df = pd.read_csv('calendar_all.csv')
+	#alldates = df.tradedate.values.tolist()
+	#alldates = [str(x) for x in alldates if str(x) >= startdate and str(x) <= enddate]
+	print(alldates)
+
+	'''for tradedate in alldates:
+		db_op.dbConnect(config['db_market'])
+		delete_sql = f"drop table vorank_{tradedate}"
+		db_op.dbExecute(delete_sql)
+	input()'''
 
 	for tradedate in alldates:
 		parseddir = "./parsed/" + tradedate
 		if not os.path.exists(parseddir):
 			os.makedirs(parseddir)
+
+		datadir_cffex = "./cffex/"  + tradedate
+		if not os.path.exists(datadir_cffex):
+			os.makedirs(datadir_cffex)
+		for code in codes_cffex:
+			url_CFFEX = 'http://www.cffex.com.cn/sj/ccpm/%s/%s/%s_1.csv'%(tradedate[:6],tradedate[6:],code)
+			data_cffex = os.path.join(datadir_cffex,url_CFFEX.split('/')[-1].split(".")[0]+"_"+tradedate+".csv")
+			request.urlretrieve(url_CFFEX, data_cffex)
+			print(url_CFFEX.split('/')[-1].split(".")[0]+"_"+tradedate+".csv")
+			parseCFFEX(tradedate,code,data_cffex)
+
+		datadir_czce = "./czce/"  + tradedate
+		if not os.path.exists(datadir_czce):
+			os.makedirs(datadir_czce)
+		if tradedate >= czce_url_change_date:
+			url_czce = "http://www.czce.com.cn/cn/DFSStaticFiles/Future/%s/%s/FutureDataHolding.txt"%(tradedate[:4],tradedate)
+		else:
+			url_czce = "http://www.czce.com.cn/cn/exchange/%s/datatradeholding/%s.txt"%(tradedate[:4],tradedate)
+		print(url_czce)
+		file_czce = os.path.join(datadir_czce,url_czce.split('/')[-1].split(".")[0] + "_" + tradedate + ".txt")
+		#request.urlretrieve(url_czce, file_czce)
+		if not os.path.exists(file_czce):
+			downloadFile(url_czce, file_czce)
+		parseCZCE(tradedate, file_czce)
+
+		datadir_dce = "./dce/"  + tradedate
+		if not os.path.exists(datadir_dce):
+			os.makedirs(datadir_dce)
+		url_dce = "http://www.dce.com.cn/publicweb/quotesdata/exportMemberDealPosiQuotesBatchData.html"
+		data_dce = os.path.join(datadir_dce,tradedate+"_DCE_DPL.zip")
+		if not os.path.exists(data_dce):
+			getDceZipData(url_dce, tradedate, data_dce)
+		parseDCE(tradedate, data_dce)
 
 		datadir_shfe = "./shfe/"  + tradedate
 		if not os.path.exists(datadir_shfe):
@@ -455,32 +565,4 @@ if __name__ == "__main__":
 		print(url_SHFE.split('/')[-1])
 		parseSHFE(tradedate, data_shfe)
 
-		datadir_cffex = "./cffex/"  + tradedate
-		if not os.path.exists(datadir_cffex):
-			os.makedirs(datadir_cffex)
-		for code in codes_cffex:
-			url_CFFEX = 'http://www.cffex.com.cn/sj/ccpm/%s/%s/%s_1.csv'%(tradedate[:6],tradedate[6:],code)
-			data_cffex = os.path.join(datadir_cffex,url_CFFEX.split('/')[-1].split(".")[0]+"_"+tradedate+".csv")
-			request.urlretrieve(url_CFFEX, data_cffex)
-			print(url_CFFEX.split('/')[-1].split(".")[0]+"_"+tradedate+".csv")
-			parseCFFEX(tradedate,code,data_cffex)
-	
-		datadir_czce = "./czce/"  + tradedate
-		if not os.path.exists(datadir_czce):
-			os.makedirs(datadir_czce)
-		url_czce = "http://www.czce.com.cn/cn/DFSStaticFiles/Future/%s/%s/FutureDataHolding.txt"%(tradedate[:4],tradedate)
-		print(url_czce)
-		file_czce = os.path.join(datadir_czce,url_czce.split('/')[-1].split(".")[0] + "_" + tradedate + ".txt")
-		#request.urlretrieve(url_czce, file_czce)
-		if not os.path.exists(file_czce):
-			downloadFile(url_czce, file_czce)
-		parseCZCE(tradedate, file_czce)
-	
-		datadir_dce = "./dce/"  + tradedate
-		if not os.path.exists(datadir_dce):
-			os.makedirs(datadir_dce)
-		url_dce = "http://www.dce.com.cn/publicweb/quotesdata/exportMemberDealPosiQuotesBatchData.html"
-		data_dce = os.path.join(datadir_dce,tradedate+"_DCE_DPL.zip")
-		if not os.path.exists(data_dce):
-			getDceZipData(url_dce, tradedate, data_dce)
-		parseDCE(tradedate, data_dce)
+		vorank2db(tradedate)

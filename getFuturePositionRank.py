@@ -318,6 +318,8 @@ def parseCFFEX(date, code, datafile):
 				rank = -1
 			elif institution == "非期货公司":
 				rank = 0
+			else:
+				continue
 			volume = int(items[3])
 			increment = int(items[4])
 			datatype = "trade"
@@ -491,11 +493,11 @@ if __name__ == "__main__":
 	today = date.today().strftime('%Y%m%d')
 	#print(today)
 
-	with open("config.json") as f:
+	'''with open("config.json") as f:
 		config = json.load(f)["db"]
 	db_op = MysqlDB(config['user'],config['password'],config['host'])
 	connStr = f"mysql+pymysql://{config['user']}:{config['password']}@{config['host']}/{config['db_market']}?charset=utf8"
-	engine = create_engine(connStr, encoding='utf-8', echo=True)
+	engine = create_engine(connStr, encoding='utf-8', echo=True)'''
 	#print(config)
 
 	czce_name_code = {}
@@ -509,7 +511,8 @@ if __name__ == "__main__":
 	#df = pd.read_csv('calendar_all.csv')
 	#alldates = df.tradedate.values.tolist()
 	#alldates = [str(x) for x in alldates if str(x) >= startdate and str(x) <= enddate]
-	print(alldates)
+	alldates=[today]
+	#print(alldates)
 
 	'''for tradedate in alldates:
 		db_op.dbConnect(config['db_market'])
@@ -565,4 +568,4 @@ if __name__ == "__main__":
 		print(url_SHFE.split('/')[-1])
 		parseSHFE(tradedate, data_shfe)
 
-		vorank2db(tradedate)
+		#vorank2db(tradedate)
